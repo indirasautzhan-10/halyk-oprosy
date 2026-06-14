@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>halyk · Опросы — прототип</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --teal:#009E8E; --teal-light:#1AC2B1; --yellow:#F5A623;
+  --bg:#EFF3F2; --card:#fff; --ink:#16201E; --muted:#5b6b67;
+  --line:#e2e8e6; --radius:18px;
+  --promoter:#2bb673; --neutral:#f5a623; --critic:#e15554;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:'Inter','Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg); color:var(--ink); line-height:1.45;
+}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--teal-light);outline-offset:2px;border-radius:6px}
+a{color:var(--teal)}
+
+/* ---------- brand bar ---------- */
+.topbar{
+  background:linear-gradient(110deg,var(--teal),var(--teal-light));
+  color:#fff;padding:14px 22px;display:flex;align-items:center;gap:14px;
+  box-shadow:0 2px 12px rgba(0,0,0,.08);position:sticky;top:0;z-index:30;
+}
+.wordmark{font-weight:800;font-size:22px;letter-spacing:-.5px}
+.wordmark .dot{color:var(--yellow)}
+.sub{font-size:13px;opacity:.92;font-weight:600}
+.concept-tag{
+  margin-left:auto;font-size:11px;background:rgba(255,255,255,.18);
+  padding:4px 10px;border-radius:999px;font-weight:600;
+}
+.surface-toggle{display:flex;gap:6px;margin-left:14px}
+.surface-toggle button{
+  background:rgba(255,255,255,.16);color:#fff;border:none;padding:6px 12px;
+  border-radius:999px;font-size:12px;font-weight:700;
+}
+.surface-toggle button.active{background:#fff;color:var(--teal)}
+
+/* ---------- desktop shell ---------- */
+.wrap{max-width:880px;margin:0 auto;padding:24px 18px 80px}
+.tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.tabs button{
+  background:var(--card);border:1px solid var(--line);padding:10px 18px;
+  border-radius:999px;font-weight:700;font-size:14px;color:var(--muted);
+}
+.tabs button.active{background:var(--teal);color:#fff;border-color:var(--teal)}
+.card{
+  background:var(--card);border-radius:var(--radius);padding:22px;
+  margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.05);
+}
+.card h2{margin:0 0 4px;font-size:19px}
+.card h3{margin:18px 0 8px;font-size:15px}
+.hint{color:var(--muted);font-size:13px;margin:0 0 14px}
+label{font-size:13px;font-weight:700;display:block;margin:0 0 6px}
+input[type=text],input[type=number],textarea,select{
+  width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:12px;
+  font-size:14px;font-family:inherit;background:#fafcfb;color:var(--ink);
+}
+textarea{resize:vertical;min-height:64px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>*{flex:1;min-width:120px}
+
+.btn{
+  background:var(--teal);color:#fff;border:none;padding:11px 18px;
+  border-radius:12px;font-weight:700;font-size:14px;
+}
+.btn:hover{background:#008576}
+.btn.ghost{background:transparent;color:var(--teal);border:1.5px solid var(--teal)}
+.btn.yellow{background:var(--yellow);color:#3a2c05}
+.btn.yellow:hover{background:#e3970f}
+.btn.sm{padding:7px 12px;font-size:13px}
+.btn.block{width:100%}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---------- question editor ---------- */
+.q-item{border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;background:#fbfdfc}
+.q-head{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+.q-head .num{
+  width:26px;height:26px;border-radius:8px;background:var(--teal);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex:none;
+}
+.q-head select{flex:none;width:auto}
+.q-actions{margin-left:auto;display:flex;gap:6px}
+.icon-btn{background:#eef3f2;border:none;border-radius:8px;width:30px;height:30px;font-size:15px;color:var(--muted)}
+.icon-btn:hover{background:#dfe9e7;color:var(--ink)}
+.opt-row{display:flex;gap:8px;margin-bottom:6px;align-items:center}
+.opt-row input{flex:1}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;background:#e6f5f3;color:var(--teal)}
+
+/* ---------- AI / import boxes ---------- */
+.toolbox{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.toolbox .btn{flex:none}
+
+/* ---------- respondent ---------- */
+.q-render{margin-bottom:22px}
+.q-render .q-text{font-weight:700;font-size:15px;margin-bottom:12px}
+.q-render .req{color:var(--critic)}
+.nps-grid{display:grid;grid-template-columns:repeat(11,1fr);gap:6px}
+.nps-grid button{
+  aspect-ratio:1;border:1.5px solid var(--line);background:#fff;border-radius:10px;
+  font-weight:700;font-size:14px;color:var(--ink);padding:0;
+}
+.nps-grid button.sel{background:var(--teal);color:#fff;border-color:var(--teal)}
+.nps-legend{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px}
+.scale-row{display:flex;gap:8px;justify-content:space-between}
+.scale-row button{
+  flex:1;border:1.5px solid var(--line);background:#fff;border-radius:12px;
+  padding:10px 4px;font-size:24px;
+}
+.scale-row button.sel{background:#fff4dd;border-color:var(--yellow)}
+.choice-list button,.yesno-row button{
+  display:block;width:100%;text-align:left;border:1.5px solid var(--line);background:#fff;
+  border-radius:12px;padding:12px 14px;margin-bottom:8px;font-size:14px;font-weight:600;color:var(--ink);
+}
+.choice-list button.sel,.yesno-row button.sel{background:var(--teal);color:#fff;border-color:var(--teal)}
+.yesno-row{display:flex;gap:10px}
+.yesno-row button{margin:0}
+.thanks{text-align:center;padding:40px 20px}
+.thanks .big{font-size:46px}
+.anon-note{font-size:12px;color:var(--muted);background:#eef3f2;border-radius:10px;padding:10px 12px;margin-top:8px}
+
+/* ---------- results ---------- */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:8px}
+.stat{background:#fbfdfc;border:1px solid var(--line);border-radius:14px;padding:14px}
+.stat .label{font-size:12px;color:var(--muted);font-weight:700}
+.stat .value{font-size:30px;font-weight:800;margin-top:2px}
+.enps-bar{display:flex;height:26px;border-radius:8px;overflow:hidden;margin:10px 0 6px}
+.enps-bar span{display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700}
+.enps-legend{display:flex;gap:16px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.enps-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px}
+.dist-row{display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:13px}
+.dist-row .nm{width:130px;flex:none;color:var(--muted)}
+.bar-track{flex:1;background:#eef3f2;border-radius:6px;height:14px;overflow:hidden}
+.bar-fill{height:100%;background:var(--teal);border-radius:6px}
+.comment{background:#fbfdfc;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:13px}
+.comment .meta{font-size:11px;color:var(--muted);margin-top:4px}
+
+/* ---------- publish / share ---------- */
+.share-box{display:flex;gap:8px;margin:10px 0}
+.share-box input{font-size:12px}
+#qrcode{display:flex;justify-content:center;padding:14px;background:#fff;border-radius:14px;border:1px solid var(--line);width:fit-content;margin:10px auto}
+.muted-small{font-size:12px;color:var(--muted)}
+
+/* ---------- mobile super-app surface ---------- */
+.phone-stage{display:none;padding:30px 12px 60px;justify-content:center}
+body.mobile-surface .wrap{display:none}
+body.mobile-surface .phone-stage{display:flex}
+.phone{
+  width:390px;max-width:100%;background:var(--bg);border-radius:36px;
+  box-shadow:0 18px 50px rgba(0,0,0,.25);overflow:hidden;border:10px solid #0c1413;
+  display:flex;flex-direction:column;height:780px;position:relative;
+}
+.phone-appbar{
+  background:linear-gradient(110deg,var(--teal),var(--teal-light));color:#fff;
+  padding:18px 18px 14px;flex:none;
+}
+.phone-appbar .wordmark{font-size:19px}
+.phone-appbar .sub{font-size:12px;opacity:.9}
+.phone-body{flex:1;overflow-y:auto;padding:16px 14px 14px}
+.phone-tabbar{
+  flex:none;display:flex;background:#fff;border-top:1px solid var(--line);
+}
+.phone-tabbar button{
+  flex:1;background:none;border:none;padding:10px 4px 12px;font-size:11px;font-weight:700;
+  color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;
+}
+.phone-tabbar button.active{color:var(--teal)}
+.phone-tabbar .ic{font-size:18px}
+.phone .card{padding:16px;border-radius:16px}
+.phone .nps-grid{grid-template-columns:repeat(6,1fr)}
+.phone .btn.block,.phone .btn{font-size:15px;padding:13px}
+
+/* on a real phone: fullscreen, no frame */
+@media (max-width:480px){
+  body.mobile-surface .phone-stage{padding:0}
+  body.mobile-surface .phone{
+    width:100%;height:100vh;height:100dvh;border:none;border-radius:0;box-shadow:none;
+  }
+}
+
+.hidden{display:none!important}
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:var(--ink);color:#fff;padding:11px 18px;border-radius:12px;font-size:13px;
+  z-index:100;box-shadow:0 6px 20px rgba(0,0,0,.25);
+}
+.foot{text-align:center;font-size:11px;color:var(--muted);padding:20px}
+</style>
+</head>
+<body>
+
+<!-- ===== DESKTOP TOPBAR ===== -->
+<div class="topbar" id="topbar">
+  <div>
+    <div class="wordmark">halyk<span class="dot">·</span> <span style="font-weight:600">Опросы</span></div>
+  </div>
+  <span class="sub">кабинет HR</span>
+  <div class="surface-toggle">
+    <button id="srfDesktop" class="active" onclick="setSurface('desktop')">🖥 Десктоп</button>
+    <button id="srfMobile" onclick="setSurface('mobile')">📱 Super App</button>
+  </div>
+  <span class="concept-tag">демо-концепт · не аффилирован с банком</span>
+</div>
+
+<!-- ===== DESKTOP SURFACE ===== -->
+<div class="wrap">
+  <div class="tabs" id="adminTabs">
+    <button data-tab="build" class="active" onclick="goTab('build')">✏️ Конструктор</button>
+    <button data-tab="take" onclick="goTab('take')">📋 Прохождение</button>
+    <button data-tab="results" onclick="goTab('results')">📊 Итоги</button>
+  </div>
+  <div id="screen"></div>
+  <div class="foot">halyk · Опросы — клиентский прототип. Данные не сохраняются на сервере.</div>
+</div>
+
+<!-- ===== MOBILE SURFACE ===== -->
+<div class="phone-stage">
+  <div class="phone">
+    <div class="phone-appbar">
+      <div class="wordmark">halyk<span class="dot">·</span> <span style="font-weight:600">Опросы</span></div>
+      <div class="sub" id="phoneSub">экран в Super App</div>
+    </div>
+    <div class="phone-body" id="phoneScreen"></div>
+    <div class="phone-tabbar" id="phoneTabs">
+      <button data-tab="build" class="active" onclick="goTab('build')"><span class="ic">✏️</span>Создать</button>
+      <button data-tab="take" onclick="goTab('take')"><span class="ic">📋</span>Опрос</button>
+      <button data-tab="results" onclick="goTab('results')"><span class="ic">📊</span>Итоги</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   halyk · Опросы — single-file prototype
+   ========================================================= */
+
+const QTYPES = {
+  nps:    {label:'eNPS 0–10'},
+  scale:  {label:'Согласие 1–5'},
+  yesno:  {label:'Да / Нет'},
+  choice: {label:'Выбор варианта'},
+  text:   {label:'Открытый ответ'},
+};
+const SCALE_EMOJI = ['😞','🙁','😐','🙂','😄'];
+
+let uid = 0;
+const nid = () => 'q'+(++uid)+'_'+Math.random().toString(36).slice(2,6);
+
+/* ---- model ---- */
+let survey = {
+  title: 'Пульс-опрос вовлечённости',
+  intro: 'Помогите нам стать лучше. Опрос анонимный и займёт ~2 минуты.',
+  target: 50,
+  questions: [
+    {id:nid(), type:'nps',   text:'Насколько вероятно, что вы порекомендуете компанию как место работы?'},
+    {id:nid(), type:'scale', text:'Мне понятны мои задачи и ожидания от моей работы.'},
+    {id:nid(), type:'scale', text:'Я чувствую поддержку от своего руководителя.'},
+    {id:nid(), type:'yesno', text:'Хватает ли вам обратной связи о вашей работе?'},
+    {id:nid(), type:'choice',text:'Что сильнее всего влияет на ваше настроение на работе?',
+      options:['Коллеги и атмосфера','Задачи и проекты','Зарплата и льготы','Руководитель','График и нагрузка']},
+    {id:nid(), type:'text',  text:'Что бы вы изменили в первую очередь?'},
+  ]
+};
+
+let activeTab = 'build';
+let answers = {};      // respondent answers
+let submitted = false;
+
+/* ===================== ROUTER ===================== */
+function isRespondentLink(){ return location.hash.startsWith('#survey='); }
+
+function decodeShared(){
+  try{
+    const raw = decodeURIComponent(location.hash.slice('#survey='.length));
+    const json = decodeURIComponent(escape(atob(raw)));
+    return JSON.parse(json);
+  }catch(e){ return null; }
+}
+
+function boot(){
+  if(isRespondentLink()){
+    const s = decodeShared();
+    if(s){ survey = s; }
+    // respondent-only clean mode
+    document.getElementById('adminTabs').style.display='none';
+    document.querySelector('.surface-toggle').style.display='none';
+    document.querySelector('.concept-tag').style.display='none';
+    document.querySelector('.sub').textContent='анонимный опрос';
+    document.getElementById('phoneTabs').style.display='none';
+    activeTab='take';
+  }
+  render();
+}
+
+function setSurface(s){
+  document.body.classList.toggle('mobile-surface', s==='mobile');
+  document.getElementById('srfDesktop').classList.toggle('active', s==='desktop');
+  document.getElementById('srfMobile').classList.toggle('active', s==='mobile');
+  render();
+}
+
+function goTab(t){
+  activeTab = t;
+  document.querySelectorAll('#adminTabs button, #phoneTabs button').forEach(b=>{
+    b.classList.toggle('active', b.dataset.tab===t);
+  });
+  render();
+}
+
+function render(){
+  let html='';
+  if(activeTab==='build')   html = viewBuild();
+  if(activeTab==='take')    html = viewTake();
+  if(activeTab==='results') html = viewResults();
+  document.getElementById('screen').innerHTML = html;
+  document.getElementById('phoneScreen').innerHTML = html;
+  if(activeTab==='take')    afterTake();
+  if(activeTab==='results') afterResults();
+}
+
+/* ===================== BUILD ===================== */
+function viewBuild(){
+  const qs = survey.questions.map((q,i)=>qEditor(q,i)).join('');
+  return `
+  <div class="card">
+    <h2>Параметры опроса</h2>
+    <p class="hint">Название и вступление видит сотрудник перед прохождением.</p>
+    <label>Название</label>
+    <input type="text" value="${esc(survey.title)}" oninput="survey.title=this.value">
+    <h3 style="margin-top:14px">Вступление</h3>
+    <textarea oninput="survey.intro=this.value">${esc(survey.intro)}</textarea>
+    <div class="row" style="margin-top:12px">
+      <div style="flex:0 0 160px">
+        <label>Цель участников</label>
+        <input type="number" min="1" value="${survey.target}" oninput="survey.target=+this.value||0">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>ИИ-генерация</h2>
+    <p class="hint">Опишите тему — модель соберёт черновик вопросов. Результат остаётся редактируемым.</p>
+    <textarea id="aiPrompt" placeholder="Напр.: вовлечённость и отношения с руководителем в отделе продаж">вовлечённость сотрудников и баланс нагрузки</textarea>
+    <div class="row" style="margin-top:10px">
+      <div style="flex:0 0 150px">
+        <label>Кол-во вопросов</label>
+        <input type="number" id="aiCount" min="1" max="12" value="5">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn yellow block" onclick="aiGenerate()">✨ Сгенерировать черновик</button>
+      </div>
+    </div>
+    <p class="muted-small" style="margin-top:8px">Для реальной генерации через Anthropic API
+      <a href="#" onclick="setApiKey();return false">укажите ключ</a> —
+      иначе будет локальный шаблонный генератор.</p>
+  </div>
+
+  <div class="card">
+    <h2>Импорт из файла</h2>
+    <p class="hint">.json (title/intro/questions) или .txt/.csv — вопрос на строку.</p>
+    <input type="file" accept=".json,.txt,.csv" onchange="importFile(event)">
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <h2 style="margin:0">Вопросы <span class="badge">${survey.questions.length}</span></h2>
+      <button class="btn sm" onclick="addQuestion()">+ Вопрос</button>
+    </div>
+    <div style="margin-top:14px">${qs || '<p class="hint">Пока нет вопросов.</p>'}</div>
+  </div>
+
+  <div class="card">
+    <h2>Публикация</h2>
+    <p class="hint">Структура опроса упаковывается в ссылку, QR генерируется в браузере.</p>
+    <button class="btn block" onclick="publish()">🔗 Опубликовать → ссылка и QR</button>
+    <div id="publishOut" class="hidden"></div>
+  </div>`;
+}
+
+function qEditor(q,i){
+  const typeSel = Object.entries(QTYPES).map(([k,v])=>
+    `<option value="${k}" ${q.type===k?'selected':''}>${v.label}</option>`).join('');
+  let opts='';
+  if(q.type==='choice'){
+    const list=(q.options||[]).map((o,oi)=>`
+      <div class="opt-row">
+        <input type="text" value="${esc(o)}" oninput="editOption('${q.id}',${oi},this.value)">
+        <button class="icon-btn" onclick="delOption('${q.id}',${oi})">✕</button>
+      </div>`).join('');
+    opts=`<div style="margin-top:8px">${list}
+      <button class="btn ghost sm" onclick="addOption('${q.id}')">+ Вариант</button></div>`;
+  }
+  return `
+  <div class="q-item">
+    <div class="q-head">
+      <span class="num">${i+1}</span>
+      <select onchange="changeType('${q.id}',this.value)">${typeSel}</select>
+      <div class="q-actions">
+        <button class="icon-btn" onclick="moveQ('${q.id}',-1)" title="Вверх">↑</button>
+        <button class="icon-btn" onclick="moveQ('${q.id}',1)" title="Вниз">↓</button>
+        <button class="icon-btn" onclick="delQ('${q.id}')" title="Удалить">🗑</button>
+      </div>
+    </div>
+    <input type="text" value="${esc(q.text)}" placeholder="Текст вопроса"
+      oninput="editText('${q.id}',this.value)">
+    ${opts}
+  </div>`;
+}
+
+/* ---- build actions ---- */
+function findQ(id){ return survey.questions.find(q=>q.id===id); }
+function editText(id,v){ findQ(id).text=v; }
+function changeType(id,t){
+  const q=findQ(id); q.type=t;
+  if(t==='choice' && !q.options) q.options=['Вариант 1','Вариант 2'];
+  render();
+}
+function editOption(id,i,v){ findQ(id).options[i]=v; }
+function addOption(id){ findQ(id).options.push('Вариант '+(findQ(id).options.length+1)); render(); }
+function delOption(id,i){ const q=findQ(id); if(q.options.length>2){q.options.splice(i,1);render();} else toast('Минимум 2 варианта'); }
+function addQuestion(){ survey.questions.push({id:nid(),type:'scale',text:''}); render(); }
+function delQ(id){ survey.questions=survey.questions.filter(q=>q.id!==id); render(); }
+function moveQ(id,dir){
+  const i=survey.questions.findIndex(q=>q.id===id), j=i+dir;
+  if(j<0||j>=survey.questions.length) return;
+  [survey.questions[i],survey.questions[j]]=[survey.questions[j],survey.questions[i]];
+  render();
+}
+
+/* ---- AI generation ---- */
+function setApiKey(){
+  const k=prompt('Anthropic API key (sk-ant-...). Хранится только в этой вкладке.', localStorage.getItem('anthropic_key')||'');
+  if(k!==null){ localStorage.setItem('anthropic_key',k.trim()); toast('Ключ сохранён локально'); }
+}
+async function aiGenerate(){
+  const topic=document.getElementById('aiPrompt').value.trim();
+  const count=Math.max(1,Math.min(12,+document.getElementById('aiCount').value||5));
+  const key=localStorage.getItem('anthropic_key');
+  if(!topic){ toast('Опишите тему'); return; }
+  if(key){
+    try{ toast('Генерация через Anthropic…'); const qs=await aiViaApi(topic,count,key);
+      survey.questions=qs; render(); toast('Готово: '+qs.length+' вопросов'); return; }
+    catch(e){ toast('API ошибка, локальный генератор'); }
+  }
+  survey.questions=aiLocal(topic,count); render(); toast('Черновик готов');
+}
+async function aiViaApi(topic,count,key){
+  const sys='Ты HR-методолог. Верни ТОЛЬКО JSON-массив вопросов опроса вовлечённости. '
+    +'Каждый: {"type":"nps|scale|yesno|choice|text","text":"...","options":["..."]}. '
+    +'options только для choice. Первый вопрос — type nps. На русском.';
+  const res=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-api-key':key,
+      'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:'claude-fable-5',max_tokens:1500,system:sys,
+      messages:[{role:'user',content:`Тема: ${topic}. Количество вопросов: ${count}.`}]})
+  });
+  const data=await res.json();
+  const txt=data.content.map(c=>c.text).join('');
+  const arr=JSON.parse(txt.slice(txt.indexOf('['),txt.lastIndexOf(']')+1));
+  return arr.slice(0,count).map(q=>({id:nid(),type:q.type||'scale',text:q.text||'',
+    ...(q.type==='choice'?{options:q.options&&q.options.length>=2?q.options:['Вариант 1','Вариант 2']}:{})}));
+}
+function aiLocal(topic,count){
+  const bank=[
+    {type:'nps',text:`Насколько вероятно, что вы порекомендуете компанию друзьям как место работы?`},
+    {type:'scale',text:`Мне нравится то, чем я занимаюсь в контексте темы «${topic}».`},
+    {type:'scale',text:`Я чувствую поддержку руководителя по вопросам «${topic}».`},
+    {type:'scale',text:`Моя нагрузка сейчас комфортна.`},
+    {type:'yesno',text:`Хватает ли вам ресурсов и информации для работы?`},
+    {type:'yesno',text:`Понимаете ли вы, как ваша работа влияет на цели компании?`},
+    {type:'choice',text:`Что сильнее всего влияет на «${topic}»?`,
+      options:['Коллеги','Задачи','Руководитель','Условия и льготы','График']},
+    {type:'text',text:`Что по теме «${topic}» вы бы изменили в первую очередь?`},
+  ];
+  const out=[bank[0]];
+  for(let i=1;out.length<count && i<bank.length;i++) out.push(bank[i]);
+  while(out.length<count) out.push({type:'scale',text:`Дополнительный вопрос ${out.length}`});
+  return out.slice(0,count).map(q=>({id:nid(),...q}));
+}
+
+/* ---- import ---- */
+function importFile(e){
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      if(f.name.endsWith('.json')){
+        const d=JSON.parse(r.result);
+        if(!Array.isArray(d.questions)) throw 0;
+        survey.title=d.title||survey.title; survey.intro=d.intro||survey.intro;
+        survey.questions=d.questions.map(q=>({id:nid(),type:q.type||'scale',text:q.text||'',
+          ...(q.options?{options:q.options}:{})}));
+      }else{
+        const lines=r.result.split(/\r?\n/).map(l=>l.replace(/^["']|["',]+$/g,'').trim()).filter(Boolean);
+        if(!lines.length) throw 0;
+        survey.questions=lines.map(t=>({id:nid(),type:'scale',text:t}));
+      }
+      render(); toast('Импортировано: '+survey.questions.length+' вопросов');
+    }catch(err){ toast('Не удалось разобрать файл — проверьте формат'); }
+  };
+  r.readAsText(f);
+}
+
+/* ---- publish ---- */
+function shareUrl(){
+  const data=JSON.stringify({title:survey.title,intro:survey.intro,target:survey.target,
+    questions:survey.questions});
+  const code=btoa(unescape(encodeURIComponent(data)));
+  return location.origin+location.pathname+'#survey='+encodeURIComponent(code);
+}
+function publish(){
+  if(!survey.questions.length){ toast('Добавьте хотя бы один вопрос'); return; }
+  const url=shareUrl();
+  const out=document.querySelectorAll('#publishOut');
+  out.forEach(el=>{
+    el.classList.remove('hidden');
+    el.innerHTML=`
+      <div class="share-box">
+        <input type="text" readonly value="${url}" id="shareInput_${Math.random().toString(36).slice(2,5)}">
+        <button class="btn sm" onclick="copyShare(this)">Копировать</button>
+      </div>
+      <div class="row">
+        <button class="btn ghost sm" onclick="goTab('take')">Открыть как сотрудник</button>
+        <button class="btn ghost sm" onclick="downloadQR(this)">Скачать QR</button>
+      </div>
+      <div class="qrhost"></div>
+      <p class="muted-small">Короткий код (в прототипе ссылка длинная — данные упакованы внутри).</p>`;
+    const host=el.querySelector('.qrhost');
+    host.innerHTML='<div id="qrcode"></div>';
+    new QRCode(host.querySelector('#qrcode'),{text:url,width:170,height:170,
+      colorDark:'#16201E',colorLight:'#ffffff'});
+  });
+  toast('Опубликовано');
+}
+function copyShare(btn){
+  const inp=btn.parentElement.querySelector('input');
+  inp.select(); navigator.clipboard?.writeText(inp.value); toast('Ссылка скопирована');
+}
+function downloadQR(btn){
+  const card=btn.closest('#publishOut')||document;
+  const img=card.querySelector('#qrcode img')||card.querySelector('#qrcode canvas');
+  if(!img){ toast('QR не готов'); return; }
+  const a=document.createElement('a');
+  a.download='halyk-survey-qr.png';
+  a.href=img.src||img.toDataURL('image/png'); a.click();
+}
+
+/* ===================== TAKE (respondent) ===================== */
+function viewTake(){
+  if(submitted){
+    return `<div class="card thanks">
+      <div class="big">🎉</div>
+      <h2>Спасибо за ответы!</h2>
+      <p class="hint">Ваше мнение поможет нам стать лучше.</p>
+      <div class="anon-note">🔒 Опрос анонимный. Ответы не связываются с вашей личностью.</div>
+      ${isRespondentLink()?'':'<button class="btn ghost sm" style="margin-top:16px" onclick="resetTake()">Пройти заново</button>'}
+    </div>`;
+  }
+  const qs=survey.questions.map((q,i)=>qRender(q,i)).join('');
+  return `
+    <div class="card">
+      <h2>${esc(survey.title)}</h2>
+      <p class="hint">${esc(survey.intro)}</p>
+      <div class="anon-note">🔒 Опрос анонимный. Это займёт около 2 минут.</div>
+    </div>
+    <div class="card">
+      ${qs}
+      <button class="btn block" id="submitBtn" onclick="submitSurvey()">Отправить</button>
+    </div>`;
+}
+function qRender(q,i){
+  const req = q.type!=='text';
+  let body='';
+  if(q.type==='nps'){
+    body=`<div class="nps-grid">${Array.from({length:11},(_,n)=>
+      `<button onclick="setAns('${q.id}',${n},this)">${n}</button>`).join('')}</div>
+      <div class="nps-legend"><span>Точно нет</span><span>Точно да</span></div>`;
+  }else if(q.type==='scale'){
+    body=`<div class="scale-row">${SCALE_EMOJI.map((e,n)=>
+      `<button onclick="setAns('${q.id}',${n+1},this)" title="${n+1}">${e}</button>`).join('')}</div>`;
+  }else if(q.type==='yesno'){
+    body=`<div class="yesno-row">
+      <button onclick="setAns('${q.id}','Да',this)">Да</button>
+      <button onclick="setAns('${q.id}','Нет',this)">Нет</button></div>`;
+  }else if(q.type==='choice'){
+    body=`<div class="choice-list">${(q.options||[]).map(o=>
+      `<button onclick="setAns('${q.id}',${JSON.stringify(o).replace(/"/g,'&quot;')},this)">${esc(o)}</button>`).join('')}</div>`;
+  }else{
+    body=`<textarea placeholder="Ваш ответ (необязательно)" oninput="setAnsText('${q.id}',this.value)"></textarea>`;
+  }
+  return `<div class="q-render" data-q="${q.id}">
+    <div class="q-text">${i+1}. ${esc(q.text)} ${req?'<span class="req">*</span>':''}</div>
+    ${body}</div>`;
+}
+function setAns(id,val,btn){
+  answers[id]=val;
+  const wrap=btn.closest('.q-render');
+  wrap.querySelectorAll('button').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  // also reflect on the other surface render
+  document.querySelectorAll(`.q-render[data-q="${id}"] button`).forEach(b=>{
+    b.classList.toggle('sel', b.textContent.trim()===String(btn.textContent).trim());
+  });
+  updateSubmit();
+}
+function setAnsText(id,v){ answers[id]=v; updateSubmit(); }
+function requiredDone(){
+  return survey.questions.filter(q=>q.type!=='text')
+    .every(q=>answers[q.id]!==undefined && answers[q.id]!=='');
+}
+function updateSubmit(){
+  document.querySelectorAll('#submitBtn').forEach(b=>b.disabled=!requiredDone());
+}
+function afterTake(){ if(!submitted) updateSubmit(); }
+function submitSurvey(){
+  if(!requiredDone()){ toast('Ответьте на обязательные вопросы'); return; }
+  submitted=true; render(); toast('Ответ отправлен анонимно');
+}
+function resetTake(){ submitted=false; answers={}; render(); }
+
+/* ===================== RESULTS ===================== */
+// demo responses for illustration
+function demoResponses(){
+  const N=37;
+  const list=[];
+  for(let i=0;i<N;i++){
+    const r={};
+    survey.questions.forEach(q=>{
+      if(q.type==='nps') r[q.id]=weighted([ [9,.18],[10,.20],[8,.18],[7,.12],[6,.08],[5,.07],[4,.05],[3,.04],[2,.03],[1,.03],[0,.02] ]);
+      else if(q.type==='scale') r[q.id]=weighted([[5,.3],[4,.32],[3,.2],[2,.12],[1,.06]]);
+      else if(q.type==='yesno') r[q.id]=Math.random()<.62?'Да':'Нет';
+      else if(q.type==='choice') r[q.id]=(q.options||['—'])[Math.floor(Math.random()*(q.options||['—']).length)];
+      else if(q.type==='text') r[q.id]=Math.random()<.3?pick(COMMENTS):'';
+    });
+    list.push(r);
+  }
+  // include the live answer if submitted
+  if(submitted && Object.keys(answers).length) list.push({...answers});
+  return list;
+}
+const COMMENTS=['Больше прозрачности в решениях руководства.','Хотелось бы гибкий график.',
+  'Спасибо за обучение, очень помогает.','Не хватает обратной связи по итогам спринта.',
+  'Зарплата отстаёт от рынка.','Командная атмосфера супер!','Много встреч, мало времени на работу.'];
+function weighted(pairs){ let r=Math.random(); for(const[v,p]of pairs){ if(r<p)return v; r-=p;} return pairs[0][0]; }
+function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+
+let _resCache=null;
+function getResults(){ if(!_resCache) _resCache=demoResponses(); return _resCache; }
+
+function viewResults(){
+  const resp=getResults();
+  const total=resp.length;
+  const npsQ=survey.questions.find(q=>q.type==='nps');
+  let enpsBlock='';
+  if(npsQ){
+    const vals=resp.map(r=>r[npsQ.id]).filter(v=>v!=null);
+    const prom=vals.filter(v=>v>=9).length, det=vals.filter(v=>v<=6).length, neu=vals.length-prom-det;
+    const enps=Math.round((prom-det)/vals.length*100);
+    const pct=n=>Math.round(n/vals.length*100);
+    enpsBlock=`<div class="card">
+      <h2>eNPS</h2>
+      <div class="stat" style="display:inline-block;margin-bottom:6px">
+        <div class="label">Индекс eNPS</div><div class="value" style="color:${enps>=0?'var(--promoter)':'var(--critic)'}">${enps>0?'+':''}${enps}</div>
+      </div>
+      <div class="enps-bar">
+        <span style="background:var(--promoter);width:${pct(prom)}%">${pct(prom)}%</span>
+        <span style="background:var(--neutral);width:${pct(neu)}%">${pct(neu)}%</span>
+        <span style="background:var(--critic);width:${pct(det)}%">${pct(det)}%</span>
+      </div>
+      <div class="enps-legend">
+        <span><i style="background:var(--promoter)"></i>Промоутеры (9–10): ${prom}</span>
+        <span><i style="background:var(--neutral)"></i>Нейтралы (7–8): ${neu}</span>
+        <span><i style="background:var(--critic)"></i>Критики (0–6): ${det}</span>
+      </div>
+    </div>`;
+  }
+  const partPct=survey.target?Math.round(total/survey.target*100):0;
+
+  // per-question blocks
+  const blocks=survey.questions.map(q=>{
+    if(q.type==='nps') return '';
+    if(q.type==='scale'){
+      const vals=resp.map(r=>r[q.id]).filter(v=>v!=null);
+      const avg=(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2);
+      const dist=[1,2,3,4,5].map(n=>({nm:n+' '+SCALE_EMOJI[n-1],c:vals.filter(v=>v===n).length}));
+      return resBlock(q.text,`<div class="stat" style="display:inline-block;margin-bottom:8px"><div class="label">Среднее</div><div class="value">${avg}<span style="font-size:14px;color:var(--muted)"> /5</span></div></div>`+distBars(dist,vals.length));
+    }
+    if(q.type==='yesno'){
+      const vals=resp.map(r=>r[q.id]).filter(Boolean);
+      const dist=[{nm:'Да',c:vals.filter(v=>v==='Да').length},{nm:'Нет',c:vals.filter(v=>v==='Нет').length}];
+      return resBlock(q.text,distBars(dist,vals.length));
+    }
+    if(q.type==='choice'){
+      const vals=resp.map(r=>r[q.id]).filter(Boolean);
+      const dist=(q.options||[]).map(o=>({nm:o,c:vals.filter(v=>v===o).length}));
+      return resBlock(q.text,distBars(dist,vals.length));
+    }
+    return '';
+  }).join('');
+
+  // comments
+  const textQs=survey.questions.filter(q=>q.type==='text');
+  let comments='';
+  textQs.forEach(q=>{
+    resp.forEach(r=>{ if(r[q.id]) comments+=`<div class="comment">«${esc(r[q.id])}»<div class="meta">${esc(q.text)} · анонимно</div></div>`; });
+  });
+
+  return `
+    <div class="card">
+      <h2>Итоги: ${esc(survey.title)}</h2>
+      <p class="hint">Демо-ответы для наглядности. В рабочей версии — реальные отклики с сервера.</p>
+      <div class="stat-grid">
+        <div class="stat"><div class="label">Откликнулись</div><div class="value">${total}</div></div>
+        <div class="stat"><div class="label">Участие</div><div class="value">${partPct}%</div></div>
+        <div class="stat"><div class="label">Цель</div><div class="value">${survey.target}</div></div>
+      </div>
+      <button class="btn block" onclick="exportExcel()">📊 Экспорт в Excel</button>
+    </div>
+    ${enpsBlock}
+    ${blocks}
+    ${comments?`<div class="card"><h2>Комментарии <span class="badge">${textQs.length?resp.filter(r=>textQs.some(q=>r[q.id])).length:0}</span></h2>${comments}</div>`:''}
+  `;
+}
+function resBlock(title,inner){
+  return `<div class="card"><h3 style="margin-top:0">${esc(title)}</h3>${inner}</div>`;
+}
+function distBars(dist,total){
+  return dist.map(d=>{
+    const pct=total?Math.round(d.c/total*100):0;
+    return `<div class="dist-row"><span class="nm">${esc(String(d.nm))}</span>
+      <span class="bar-track"><span class="bar-fill" style="width:${pct}%"></span></span>
+      <span style="width:64px;text-align:right">${d.c} · ${pct}%</span></div>`;
+  }).join('');
+}
+function afterResults(){ /* charts already inline */ }
+
+/* ---- excel export ---- */
+function exportExcel(){
+  const resp=getResults();
+  const wb=XLSX.utils.book_new();
+
+  // Sheet 1: Сводка
+  const summary=[['Опрос',survey.title],['Откликнулись',resp.length],['Цель',survey.target],
+    ['Участие %',survey.target?Math.round(resp.length/survey.target*100):0],[]];
+  const npsQ=survey.questions.find(q=>q.type==='nps');
+  if(npsQ){
+    const vals=resp.map(r=>r[npsQ.id]).filter(v=>v!=null);
+    const prom=vals.filter(v=>v>=9).length,det=vals.filter(v=>v<=6).length;
+    summary.push(['eNPS',Math.round((prom-det)/vals.length*100)]);
+    summary.push(['Промоутеры',prom],['Нейтралы',vals.length-prom-det],['Критики',det],[]);
+  }
+  survey.questions.forEach(q=>{
+    if(q.type==='scale'){ const v=resp.map(r=>r[q.id]).filter(x=>x!=null);
+      summary.push([q.text,'среднее: '+(v.reduce((a,b)=>a+b,0)/v.length).toFixed(2)]); }
+    if(q.type==='yesno'){ const v=resp.map(r=>r[q.id]).filter(Boolean);
+      summary.push([q.text,'Да: '+v.filter(x=>x==='Да').length+' / Нет: '+v.filter(x=>x==='Нет').length]); }
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(summary),'Сводка');
+
+  // Sheet 2: Ответы построчно
+  const head=['#',...survey.questions.map((q,i)=>`Q${i+1}: ${q.text}`)];
+  const rows=resp.map((r,i)=>[i+1,...survey.questions.map(q=>r[q.id]??'')]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([head,...rows]),'Ответы');
+
+  // Sheet 3: Комментарии
+  const ch=[['Вопрос','Комментарий']];
+  survey.questions.filter(q=>q.type==='text').forEach(q=>{
+    resp.forEach(r=>{ if(r[q.id]) ch.push([q.text,r[q.id]]); });
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ch),'Комментарии');
+
+  XLSX.writeFile(wb,'halyk-opros-rezultaty.xlsx');
+  toast('Excel выгружен');
+}
+
+/* ===================== helpers ===================== */
+function esc(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+let _toastT;
+function toast(msg){
+  let t=document.querySelector('.toast');
+  if(!t){ t=document.createElement('div'); t.className='toast'; document.body.appendChild(t); }
+  t.textContent=msg; t.style.opacity='1';
+  clearTimeout(_toastT); _toastT=setTimeout(()=>{ t.style.opacity='0'; },2200);
+}
+
+window.addEventListener('hashchange',()=>location.reload());
+boot();
+</script>
+</body>
+</html>
